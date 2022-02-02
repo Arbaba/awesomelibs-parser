@@ -3,7 +3,6 @@ import net.ruippeixotog.scalascraper.browser.JsoupBrowser
 import net.ruippeixotog.scalascraper.dsl.DSL._
 import net.ruippeixotog.scalascraper.dsl.DSL.Extract._
 import net.ruippeixotog.scalascraper.dsl.DSL.Parse._
-import net.ruippeixotog.scalascraper.model._
 import fastparse.Parsed.Failure
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
@@ -20,51 +19,86 @@ object Main extends App {
 
   val parser = MarkdownParser()
 
-  val result = parser.parse(content)
-  //val result = parser.toMarkdown("### ndudenude\n")
+  val result = parser.parse(content, Some("## Package Managers"))
+
+  /*val result = fastparse.parse(
+    "# ndudenude\n",
+    parser.h1(_),
+    verboseFailures = true
+  )
+  println(result)*/
   result match {
     case Parsed.Success(markdown: Markdown, _) =>
-      //println(markdown)
-      //println(find(markdown.nodes, Nil))
-      //findUnordered(markdown.nodes, Nil).foreach(println)
-      //findUnordered(markdown.nodes, Nil).foreach(println)
-      val x = findAllTyped(markdown.nodes, Seq.empty[Header])
-      println(x)
+      println(markdown)
+      val x = findAllTyped[Link](markdown.nodes, Seq.empty[Link])
+      // x.foreach(y => println(y))
+      println(x.size)
+      val y = findAll(
+        markdown.nodes,
+        n =>
+          n match {
+            case _: Header | UnorderedList(_) => true
+            case _                            => false
+          },
+        Seq.empty[Node]
+      )
+      y.reverse.foreach(println)
+
     case f @ Parsed.Failure(_, _, _) => f.trace()
 
   }
-  @tailrec
-  def find(nodes: Seq[BlockElement], acc: Seq[H2]): Seq[H2] = {
-    nodes match {
-      case Nil                    => acc.reverse
-      case Seq(h2: H2, tail @ _*) => find(tail, h2 +: acc)
-      case _                      => find(nodes.tail, acc)
-    }
-  }
 
+  /** Find all nodes of the given paremetric Type T in the given list of nodes.
+    * The functions also iterates over children of each node
+    * @param nodes
+    * @param acc
+    * @return
+    */
   @tailrec
   def findAllTyped[T: ClassTag](
-      nodes: Seq[BlockElement],
+      nodes: Seq[Node],
       acc: Seq[T]
   ): Seq[T] = {
     nodes match {
-      case Nil => acc.reverse
+      case Nil => acc
       case Seq(head: T, tail @ _*) =>
-        findAllTyped[T](tail, head +: acc)
-      case _ =>
-        findAllTyped[T](nodes.tail, acc)
+        head.children match {
+          case Nil =>
+            findAllTyped[T](tail, head +: acc)
+          case Seq(childrenHead, childrenTail @ _*) =>
+            findAllTyped[T](childrenTail ++: tail, head +: acc)
+        }
+      case Seq(head, tail @ _*) =>
+        findAllTyped[T](head.children ++: tail, acc)
+
     }
   }
 
+  /** Find all nodes of for which the given predicate evaluates to true. The
+    * functions also iterates over children of each node
+    * @param nodes
+    * @param predicate
+    * @param acc
+    * @return
+    */
   @tailrec
-  def findUnordered(
-      nodes: Seq[BlockElement],
-      acc: Seq[UnorderedList]
-  ): Seq[UnorderedList] = {
+  def findAll(
+      nodes: Seq[Node],
+      predicate: Node => Boolean,
+      acc: Seq[Node]
+  ): Seq[Node] = {
     nodes match {
-      case Nil                               => acc.reverse
-      case Seq(h2: UnorderedList, tail @ _*) => findUnordered(tail, h2 +: acc)
-      case _                                 => findUnordered(nodes.tail, acc)
+      case Nil => acc
+      case Seq(head, tail @ _*) if predicate(head) =>
+        head.children match {
+          case Nil =>
+            findAll(tail, predicate, head +: acc)
+          case Seq(childrenHead, childrenTail @ _*) =>
+            findAll(childrenTail ++: tail, predicate, head +: acc)
+        }
+      case Seq(head, tail @ _*) =>
+        findAll(head.children ++: tail, predicate, acc)
+
     }
   }
 }
@@ -75,4 +109,3 @@ case class Project(
     github_readme: Option[String],
     topics: List[String]
 )
-

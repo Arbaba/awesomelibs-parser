@@ -44,21 +44,26 @@ case class MarkdownParser() extends Parser[String, Markdown] {
         CrossRefence(description, url)
     }
   )
+  def unclosedItalic[_: P]: P[Italic] =
+    (CharsWhile(c => c != '\n' && c != '\r' && c != '*')).!.map(Italic(_))
+  def italic[_: P]: P[Italic] = P(
+    ("*" ~~ unclosedItalic ~~ "*")
+  )
   //def quote[_: P] = P((">" ~ multiSpace ~ span).rep)
-  def unorderedListItem[_: P]: P[Span] = P(("*" | "-") ~ span)
+  def unorderedListItem[_: P]: P[Span] = P(("*" | "-") ~~ multiSpace ~ span)
   def unorderedList[_: P]: P[UnorderedList] = P(
     (unorderedListItem ~ lineEnding).rep(1).map(UnorderedList(_))
   )
 
   def span[_: P]: P[Span] = P(
-    (img | crossReference | link | plainText).rep.map(Span(_))
+    (img | crossReference | link | italic | plainText).rep.map(Span(_))
   )
-  def h1[_: P]: P[Header] = P("#" ~ span.map(H1(_)))
-  def h2[_: P]: P[Header] = P("#".rep(2) ~ span.map(H2(_)))
-  def h3[_: P]: P[Header] = P("#".rep(3) ~ span.map(H3(_)))
-  def h4[_: P]: P[Header] = P("#".rep(4) ~ span.map(H4(_)))
-  def h5[_: P]: P[Header] = P("#".rep(5) ~ span.map(H5(_)))
-  def h6[_: P]: P[Header] = P("#".rep(6) ~ span.map(H6(_)))
+  def h1[_: P]: P[Header] = P("#" ~~ multiSpace ~ span.map(H1(_)))
+  def h2[_: P]: P[Header] = P("#".rep(2) ~~ multiSpace ~ span.map(H2(_)))
+  def h3[_: P]: P[Header] = P("#".rep(3) ~~ multiSpace ~ span.map(H3(_)))
+  def h4[_: P]: P[Header] = P("#".rep(4) ~~ multiSpace ~ span.map(H4(_)))
+  def h5[_: P]: P[Header] = P("#".rep(5) ~~ multiSpace ~ span.map(H5(_)))
+  def h6[_: P]: P[Header] = P("#".rep(6) ~~ multiSpace ~ span.map(H6(_)))
   def mmm[_: P]: P[Span] = span
   def parseBlock[_: P]: P[BlockElement] = P(
     (unorderedList | ((header | span) ~ lineEnding))
